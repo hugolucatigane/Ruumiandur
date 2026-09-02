@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="et">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="ESP8266 ruumianduri prototüübi reaalajavaade">
+    <title>Ruumiandur</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <script src="/static/app.js" defer></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <div>
+          <p class="eyebrow">ESP8266 PROTOTÜÜP</p>
+          <h1>Ruumiandur</h1>
+        </div>
+      </div>
+      <div class="device-controls">
+        <label for="device-id">Seade</label>
+        <input id="device-id" value="esp8266-bedroom-1" maxlength="64" spellcheck="false">
+        <button id="refresh-button" class="secondary-button" type="button">Värskenda</button>
+      </div>
+    </header>
+
+    <main>
+      <section class="status-strip" aria-live="polite">
+        <div class="status-copy">
+          <span id="status-dot" class="status-dot unknown" aria-hidden="true"></span>
+          <div>
+            <p id="status-label" class="status-label">Ootan andmeid</p>
+            <p id="status-message" class="muted">Anduri olekut pole veel kontrollitud.</p>
+          </div>
+        </div>
+        <div class="status-meta">
+          <span id="room-label">—</span>
+          <span id="last-update">Viimane mõõtmine: —</span>
+        </div>
+      </section>
+
+      <section class="metrics" aria-label="Viimased väärtused">
+        <article class="metric-card temperature-card">
+          <div class="metric-heading">
+            <span>Temperatuur</span>
+            <span id="temperature-quality" class="tag">—</span>
+          </div>
+          <p class="metric-value"><span id="temperature-value">—</span><small>°C</small></p>
+          <p id="temperature-range" class="muted">Prototüübi piir 18–24 °C</p>
+        </article>
+        <article class="metric-card humidity-card">
+          <div class="metric-heading">
+            <span>Õhuniiskus</span>
+            <span id="humidity-quality" class="tag">—</span>
+          </div>
+          <p class="metric-value"><span id="humidity-value">—</span><small>%</small></p>
+          <p id="humidity-range" class="muted">Prototüübi piir 30–60%</p>
+        </article>
+        <article class="metric-card quality-card">
+          <div class="metric-heading"><span>Andmekvaliteet</span></div>
+          <p id="quality-value" class="quality-value">—</p>
+          <p id="quality-detail" class="muted">Vigaseid sõnumeid 24 h jooksul: —</p>
+        </article>
+      </section>
+
+      <section class="content-grid">
+        <article class="panel history-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">VIIMASED MÕÕTMISED</p>
+              <h2>Muutus ajas</h2>
+            </div>
+            <span id="sample-count" class="tag">0 väärtust</span>
+          </div>
+          <div class="chart-block">
+            <div class="chart-label"><span>Temperatuur</span><span id="temperature-chart-range">—</span></div>
+            <canvas id="temperature-chart" role="img" aria-label="Temperatuuri muutus ajas"></canvas>
+          </div>
+          <div class="chart-block">
+            <div class="chart-label"><span>Õhuniiskus</span><span id="humidity-chart-range">—</span></div>
+            <canvas id="humidity-chart" role="img" aria-label="Õhuniiskuse muutus ajas"></canvas>
+          </div>
+        </article>
+
+        <article class="panel summary-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">KLIENDI KOKKUVÕTE</p>
+              <h2>Mida ruum räägib?</h2>
+            </div>
+            <select id="summary-period" aria-label="Kokkuvõtte periood">
+              <option value="1">1 tund</option>
+              <option value="8">8 tundi</option>
+              <option value="24" selected>24 tundi</option>
+            </select>
+          </div>
+          <div id="summary-text" class="summary-text" aria-live="polite">
+            Vajuta nuppu, et koostada viimaste andmete põhjal eestikeelne kokkuvõte.
+          </div>
+          <div id="anomaly-list" class="anomaly-list"></div>
+          <div class="summary-footer">
+            <span id="summary-meta" class="muted">Piirid otsustab rakendus, mitte keelemudel.</span>
+            <button id="summary-button" class="primary-button" type="button">Koosta kokkuvõte</button>
+          </div>
+        </article>
+      </section>
+
+      <section class="panel table-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">TOORANDMETE KONTROLL</p>
+            <h2>Viimased saabunud väärtused</h2>
+          </div>
+          <a href="/docs" target="_blank" rel="noreferrer">REST API dokumentatsioon</a>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Aeg</th><th>Temperatuur</th><th>Õhuniiskus</th><th>Režiim</th><th>Jada</th></tr>
+            </thead>
+            <tbody id="reading-rows">
+              <tr><td colspan="5" class="empty-cell">Andmed puuduvad.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      Simuleeritud mõõtmised · serveri vastuvõtuaeg · automaatne värskendus 5 sekundi järel
+    </footer>
+  </body>
+</html>

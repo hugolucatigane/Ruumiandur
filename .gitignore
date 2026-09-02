@@ -1,0 +1,8 @@
+.venv/
+.arduino-build/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+data/*.sqlite*
+.env
+firmware/ruumiandur/secrets.h
