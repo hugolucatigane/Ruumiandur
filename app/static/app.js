@@ -10,6 +10,8 @@ const elements = {
   humidityValue: document.querySelector("#humidity-value"),
   temperatureQuality: document.querySelector("#temperature-quality"),
   humidityQuality: document.querySelector("#humidity-quality"),
+  temperatureRange: document.querySelector("#temperature-range"),
+  humidityRange: document.querySelector("#humidity-range"),
   qualityValue: document.querySelector("#quality-value"),
   qualityDetail: document.querySelector("#quality-detail"),
   sampleCount: document.querySelector("#sample-count"),
@@ -26,6 +28,7 @@ const elements = {
 };
 
 let latestReadings = [];
+let latestThresholds = null;
 
 function deviceId() {
   return elements.deviceId.value.trim() || "esp8266-bedroom-1";
@@ -70,8 +73,10 @@ async function refresh() {
       getJson("/api/status", { device_id: deviceId() }),
     ]);
     latestReadings = readingPayload.readings;
+    latestThresholds = status.thresholds;
     renderStatus(status);
-    renderReadings(latestReadings);
+    renderThresholds(latestThresholds);
+    renderReadings(latestReadings, latestThresholds);
   } catch (error) {
     renderFetchError(error);
   } finally {
@@ -88,7 +93,14 @@ function renderStatus(status) {
   elements.qualityDetail.textContent = `Vigaseid sõnumeid 24 h jooksul: ${status.rejected_last_24h}`;
 }
 
-function renderReadings(readings) {
+function renderThresholds(thresholds) {
+  const [temperatureMinimum, temperatureMaximum] = thresholds.temperature_c;
+  const [humidityMinimum, humidityMaximum] = thresholds.humidity_pct;
+  elements.temperatureRange.textContent = `Eelistatud unevahemik ${temperatureMinimum}–${temperatureMaximum} °C`;
+  elements.humidityRange.textContent = `Eelistatud unevahemik ${humidityMinimum}–${humidityMaximum}%`;
+}
+
+function renderReadings(readings, thresholds) {
   elements.sampleCount.textContent = `${readings.length} väärtust`;
   if (!readings.length) {
     elements.temperatureValue.textContent = "—";
@@ -108,8 +120,8 @@ function renderReadings(readings) {
   elements.humidityValue.textContent = Number(latest.humidity_pct).toFixed(1);
   elements.roomLabel.textContent = `${latest.room} · ${latest.simulated ? "simulaator" : "pärisandur"}`;
   elements.lastUpdate.textContent = `Viimane mõõtmine: ${formatTime(latest.received_at)}`;
-  setTag(elements.temperatureQuality, classify(latest.temperature_c, 18, 24));
-  setTag(elements.humidityQuality, classify(latest.humidity_pct, 30, 60));
+  setTag(elements.temperatureQuality, classify(latest.temperature_c, ...thresholds.temperature_c));
+  setTag(elements.humidityQuality, classify(latest.humidity_pct, ...thresholds.humidity_pct));
 
   const ascending = [...readings].reverse();
   drawLine(elements.temperatureChart, ascending, "temperature_c", "#c76526", elements.temperatureChartRange, "°C");
@@ -201,9 +213,11 @@ async function createSummary() {
     });
     elements.summaryText.textContent = report.summary;
     const sources = {
+      ollama: "kohalik Ollama / Qwen3",
       openai: "OpenAI",
       rules_no_api_key: "reeglipõhine varuvariant (API võti puudub)",
       rules_ai_error: "reeglipõhine varuvariant (AI teenus ei vastanud)",
+      rules_no_ai_available: "reeglipõhine varuvariant (AI pole saadaval)",
       rules_requested: "reeglipõhine",
     };
     elements.summaryMeta.textContent = `Allikas: ${sources[report.summary_source] || report.summary_source} · AI sisend ${report.ai_input_bytes} baiti`;
@@ -235,7 +249,7 @@ function renderFetchError(error) {
 elements.refreshButton.addEventListener("click", refresh);
 elements.summaryButton.addEventListener("click", createSummary);
 elements.deviceId.addEventListener("change", refresh);
-window.addEventListener("resize", () => renderReadings(latestReadings));
+window.addEventListener("resize", () => renderReadings(latestReadings, latestThresholds));
 
 refresh();
 window.setInterval(refresh, 5000);

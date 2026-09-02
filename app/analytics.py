@@ -56,6 +56,7 @@ def build_device_status(
         "rejected_last_24h": rejected_last_24h,
         "expected_interval_seconds": settings.expected_interval_seconds,
         "offline_after_seconds": settings.offline_after_seconds,
+        "thresholds": _thresholds(settings),
     }
 
 
@@ -236,4 +237,3 @@ def fallback_summary(report: dict[str, Any]) -> str:
     if status["state"] in {"offline", "degraded"}:
         second = f"{second} {status['message']}"
     return f"{first} {second}"
-

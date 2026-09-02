@@ -11,6 +11,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from dotenv import load_dotenv
 
 from .ai_summary import SummaryResult, generate_summary, prepare_facts
 from .analytics import analyse_readings, build_device_status, fallback_summary
@@ -18,6 +19,8 @@ from .config import Settings
 from .database import Database
 from .models import IngestResult, ReadingCreate
 
+
+load_dotenv()
 
 STATIC_DIR = Path(__file__).parent / "static"
 
