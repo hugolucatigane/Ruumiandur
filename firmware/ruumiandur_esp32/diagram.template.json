@@ -35,7 +35,7 @@
     [ "esp32:D4", "dht22:SDA", "green", [] ],
     [ "esp32:GND.1", "dht22:GND", "black", [] ],
     [ "esp32:VIN", "mq2:VCC", "red", [] ],
-    [ "esp32:D34", "mq2:AO", "orange", [] ],
+    [ "esp32:D34", "mq2:AOUT", "orange", [] ],
     [ "esp32:GND.2", "mq2:GND", "black", [] ]
   ],
   "serialMonitor": {
