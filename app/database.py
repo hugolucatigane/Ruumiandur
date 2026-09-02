@@ -48,12 +48,17 @@ class Database:
                     id INTEGER PRIMARY KEY,
                     device_id TEXT NOT NULL,
                     boot_id TEXT NOT NULL,
-                    room TEXT NOT NULL,
                     seq INTEGER NOT NULL,
                     uptime_ms INTEGER NOT NULL,
+                    sent_uptime_ms INTEGER,
                     received_at TEXT NOT NULL,
+                    measured_at TEXT NOT NULL,
                     temperature_c REAL NOT NULL,
                     humidity_pct REAL NOT NULL,
+                    gas_raw INTEGER,
+                    gas_level_pct REAL,
+                    gas_source TEXT NOT NULL DEFAULT 'none',
+                    gas_warmup INTEGER NOT NULL DEFAULT 0,
                     simulated INTEGER NOT NULL,
                     mode TEXT NOT NULL,
                     UNIQUE(device_id, boot_id, seq)
@@ -74,19 +79,70 @@ class Database:
                 ON ingestion_events(device_id, received_at DESC);
                 """
             )
+            self._add_missing_reading_columns(connection)
+            self._remove_legacy_room_column(connection)
+            connection.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_readings_device_measured
+                ON readings(device_id, measured_at DESC)
+                """
+            )
             connection.execute("PRAGMA optimize")
 
+    @staticmethod
+    def _add_missing_reading_columns(connection: sqlite3.Connection) -> None:
+        existing = {
+            str(row["name"])
+            for row in connection.execute("PRAGMA table_info(readings)").fetchall()
+        }
+        additions = {
+            "measured_at": "TEXT",
+            "sent_uptime_ms": "INTEGER",
+            "gas_raw": "INTEGER",
+            "gas_level_pct": "REAL",
+            "gas_source": "TEXT NOT NULL DEFAULT 'none'",
+            "gas_warmup": "INTEGER NOT NULL DEFAULT 0",
+        }
+        for name, definition in additions.items():
+            if name not in existing:
+                connection.execute(f"ALTER TABLE readings ADD COLUMN {name} {definition}")
+        connection.execute(
+            "UPDATE readings SET measured_at = received_at WHERE measured_at IS NULL"
+        )
+
+    @staticmethod
+    def _remove_legacy_room_column(connection: sqlite3.Connection) -> None:
+        existing = {
+            str(row["name"])
+            for row in connection.execute("PRAGMA table_info(readings)").fetchall()
+        }
+        if "room" in existing:
+            connection.execute("ALTER TABLE readings DROP COLUMN room")
+
     def insert_reading(self, reading: ReadingCreate) -> tuple[str, int, str]:
-        received_at = iso_utc(utc_now())
+        received_time = utc_now()
+        received_at = iso_utc(received_time)
+        if reading.measured_at:
+            measured_at = iso_utc(reading.measured_at)
+        elif reading.sent_uptime_ms is not None:
+            elapsed_ms = (reading.sent_uptime_ms - reading.uptime_ms) % (1 << 32)
+            measured_at = iso_utc(received_time - timedelta(milliseconds=elapsed_ms))
+        else:
+            measured_at = received_at
         values = (
             reading.device_id,
             reading.boot_id,
-            reading.room,
             reading.seq,
             reading.uptime_ms,
+            reading.sent_uptime_ms,
             received_at,
+            measured_at,
             reading.temperature_c,
             reading.humidity_pct,
+            reading.gas_raw,
+            reading.gas_level_pct,
+            reading.gas_source,
+            int(reading.gas_warmup),
             int(reading.simulated),
             reading.mode,
         )
@@ -94,9 +150,11 @@ class Database:
             cursor = connection.execute(
                 """
                 INSERT OR IGNORE INTO readings (
-                    device_id, boot_id, room, seq, uptime_ms, received_at,
-                    temperature_c, humidity_pct, simulated, mode
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    device_id, boot_id, seq, uptime_ms, sent_uptime_ms,
+                    received_at, measured_at,
+                    temperature_c, humidity_pct, gas_raw, gas_level_pct,
+                    gas_source, gas_warmup, simulated, mode
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 values,
             )
@@ -148,17 +206,19 @@ class Database:
         parameters: list[Any] = [device_id]
         where = "device_id = ?"
         if since is not None:
-            where += " AND received_at >= ?"
+            where += " AND measured_at >= ?"
             parameters.append(iso_utc(since))
         parameters.append(limit)
         with self.session() as connection:
             rows = connection.execute(
                 f"""
-                SELECT id, device_id, boot_id, room, seq, uptime_ms, received_at,
-                       temperature_c, humidity_pct, simulated, mode
+                SELECT id, device_id, boot_id, seq, uptime_ms, sent_uptime_ms,
+                       received_at, measured_at,
+                       temperature_c, humidity_pct, gas_raw, gas_level_pct,
+                       gas_source, gas_warmup, simulated, mode
                 FROM readings
                 WHERE {where}
-                ORDER BY received_at DESC
+                ORDER BY measured_at DESC
                 LIMIT ?
                 """,
                 parameters,
@@ -166,11 +226,30 @@ class Database:
         result = [dict(row) for row in rows]
         for row in result:
             row["simulated"] = bool(row["simulated"])
+            row["gas_warmup"] = bool(row["gas_warmup"])
         return result
 
     def latest_reading(self, device_id: str) -> dict[str, Any] | None:
-        rows = self.recent_readings(device_id, limit=1)
-        return rows[0] if rows else None
+        with self.session() as connection:
+            row = connection.execute(
+                """
+                SELECT id, device_id, boot_id, seq, uptime_ms, sent_uptime_ms,
+                       received_at, measured_at, temperature_c, humidity_pct,
+                       gas_raw, gas_level_pct, gas_source, gas_warmup,
+                       simulated, mode
+                FROM readings
+                WHERE device_id = ?
+                ORDER BY received_at DESC
+                LIMIT 1
+                """,
+                (device_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        result = dict(row)
+        result["simulated"] = bool(result["simulated"])
+        result["gas_warmup"] = bool(result["gas_warmup"])
+        return result
 
     def latest_event(self, device_id: str) -> dict[str, Any] | None:
         with self.session() as connection:

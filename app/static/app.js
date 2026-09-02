@@ -4,21 +4,25 @@ const elements = {
   statusDot: document.querySelector("#status-dot"),
   statusLabel: document.querySelector("#status-label"),
   statusMessage: document.querySelector("#status-message"),
-  roomLabel: document.querySelector("#room-label"),
   lastUpdate: document.querySelector("#last-update"),
   temperatureValue: document.querySelector("#temperature-value"),
   humidityValue: document.querySelector("#humidity-value"),
+  gasValue: document.querySelector("#gas-value"),
   temperatureQuality: document.querySelector("#temperature-quality"),
   humidityQuality: document.querySelector("#humidity-quality"),
+  gasQuality: document.querySelector("#gas-quality"),
   temperatureRange: document.querySelector("#temperature-range"),
   humidityRange: document.querySelector("#humidity-range"),
+  gasRange: document.querySelector("#gas-range"),
   qualityValue: document.querySelector("#quality-value"),
   qualityDetail: document.querySelector("#quality-detail"),
   sampleCount: document.querySelector("#sample-count"),
   temperatureChart: document.querySelector("#temperature-chart"),
   humidityChart: document.querySelector("#humidity-chart"),
+  gasChart: document.querySelector("#gas-chart"),
   temperatureChartRange: document.querySelector("#temperature-chart-range"),
   humidityChartRange: document.querySelector("#humidity-chart-range"),
+  gasChartRange: document.querySelector("#gas-chart-range"),
   rows: document.querySelector("#reading-rows"),
   summaryPeriod: document.querySelector("#summary-period"),
   summaryButton: document.querySelector("#summary-button"),
@@ -31,7 +35,7 @@ let latestReadings = [];
 let latestThresholds = null;
 
 function deviceId() {
-  return elements.deviceId.value.trim() || "esp8266-bedroom-1";
+  return elements.deviceId.value.trim() || "esp32-bedroom-1";
 }
 
 async function getJson(path, parameters = {}) {
@@ -76,7 +80,7 @@ async function refresh() {
     latestThresholds = status.thresholds;
     renderStatus(status);
     renderThresholds(latestThresholds);
-    renderReadings(latestReadings, latestThresholds);
+    renderReadings(latestReadings, latestThresholds, status.sensor_warnings || []);
   } catch (error) {
     renderFetchError(error);
   } finally {
@@ -86,46 +90,76 @@ async function refresh() {
 
 function renderStatus(status) {
   const labels = { online: "Andur on ühendatud", degraded: "Andmete kvaliteediprobleem", offline: "Andur ei vasta", unknown: "Andmed puuduvad" };
+  const sensorWarnings = status.sensor_warnings || [];
   elements.statusDot.className = `status-dot ${status.state}`;
   elements.statusLabel.textContent = labels[status.state] || status.state;
   elements.statusMessage.textContent = status.message;
-  elements.qualityValue.textContent = status.state === "online" ? "Kehtiv voog" : labels[status.state] || "Kontrolli andurit";
-  elements.qualityDetail.textContent = `Vigaseid sõnumeid 24 h jooksul: ${status.rejected_last_24h}`;
+  elements.qualityValue.textContent = sensorWarnings.length
+    ? "Kahtlane mõõtekanal"
+    : status.state === "online" ? "Kehtiv voog" : labels[status.state] || "Kontrolli andurit";
+  const warningDetail = sensorWarnings.length ? `Kinni jäänud kanaleid: ${sensorWarnings.length} · ` : "";
+  elements.qualityDetail.textContent = `${warningDetail}Vigaseid sõnumeid 24 h jooksul: ${status.rejected_last_24h}`;
 }
 
 function renderThresholds(thresholds) {
   const [temperatureMinimum, temperatureMaximum] = thresholds.temperature_c;
   const [humidityMinimum, humidityMaximum] = thresholds.humidity_pct;
+  const [, gasMaximum] = thresholds.gas_level_pct;
   elements.temperatureRange.textContent = `Eelistatud unevahemik ${temperatureMinimum}–${temperatureMaximum} °C`;
   elements.humidityRange.textContent = `Eelistatud unevahemik ${humidityMinimum}–${humidityMaximum}%`;
+  elements.gasRange.textContent = `Hoiatuspiir ${gasMaximum}% · suhteline signaal, mitte ppm`;
 }
 
-function renderReadings(readings, thresholds) {
+function renderReadings(readings, thresholds, sensorWarnings = []) {
   elements.sampleCount.textContent = `${readings.length} väärtust`;
   if (!readings.length) {
     elements.temperatureValue.textContent = "—";
     elements.humidityValue.textContent = "—";
-    elements.roomLabel.textContent = "—";
+    elements.gasValue.textContent = "—";
     elements.lastUpdate.textContent = "Viimane mõõtmine: —";
     setTag(elements.temperatureQuality, { label: "—", className: "" });
     setTag(elements.humidityQuality, { label: "—", className: "" });
-    elements.rows.innerHTML = '<tr><td colspan="5" class="empty-cell">Andmed puuduvad.</td></tr>';
+    setTag(elements.gasQuality, { label: "—", className: "" });
+    elements.rows.innerHTML = '<tr><td colspan="6" class="empty-cell">Andmed puuduvad.</td></tr>';
     drawLine(elements.temperatureChart, [], "temperature_c", "#c76526", elements.temperatureChartRange, "°C");
     drawLine(elements.humidityChart, [], "humidity_pct", "#256b9b", elements.humidityChartRange, "%");
+    drawLine(elements.gasChart, [], "gas_level_pct", "#b83e3e", elements.gasChartRange, "%");
     return;
   }
 
   const latest = readings[0];
+  const stuckCodes = new Set(sensorWarnings.map((warning) => warning.code));
   elements.temperatureValue.textContent = Number(latest.temperature_c).toFixed(1);
   elements.humidityValue.textContent = Number(latest.humidity_pct).toFixed(1);
-  elements.roomLabel.textContent = `${latest.room} · ${latest.simulated ? "simulaator" : "pärisandur"}`;
-  elements.lastUpdate.textContent = `Viimane mõõtmine: ${formatTime(latest.received_at)}`;
-  setTag(elements.temperatureQuality, classify(latest.temperature_c, ...thresholds.temperature_c));
-  setTag(elements.humidityQuality, classify(latest.humidity_pct, ...thresholds.humidity_pct));
+  elements.gasValue.textContent = latest.gas_level_pct == null ? "—" : Number(latest.gas_level_pct).toFixed(1);
+  elements.lastUpdate.textContent = `Viimane mõõtmine: ${formatTime(latest.measured_at)}`;
+  setTag(
+    elements.temperatureQuality,
+    stuckCodes.has("temperature_stuck")
+      ? { label: "näit ei muutu", className: "warning" }
+      : classify(latest.temperature_c, ...thresholds.temperature_c),
+  );
+  setTag(
+    elements.humidityQuality,
+    stuckCodes.has("humidity_stuck")
+      ? { label: "näit ei muutu", className: "warning" }
+      : classify(latest.humidity_pct, ...thresholds.humidity_pct),
+  );
+  if (latest.gas_level_pct == null) {
+    setTag(elements.gasQuality, { label: "andmed puuduvad", className: "" });
+  } else if (latest.gas_warmup) {
+    setTag(elements.gasQuality, { label: "soojeneb", className: "warning" });
+  } else if (stuckCodes.has("gas_stuck")) {
+    setTag(elements.gasQuality, { label: "näit ei muutu", className: "warning" });
+  } else {
+    setTag(elements.gasQuality, classify(latest.gas_level_pct, ...thresholds.gas_level_pct));
+  }
 
   const ascending = [...readings].reverse();
   drawLine(elements.temperatureChart, ascending, "temperature_c", "#c76526", elements.temperatureChartRange, "°C");
   drawLine(elements.humidityChart, ascending, "humidity_pct", "#256b9b", elements.humidityChartRange, "%");
+  const gasReadings = ascending.filter((reading) => reading.gas_level_pct != null && !reading.gas_warmup);
+  drawLine(elements.gasChart, gasReadings, "gas_level_pct", "#b83e3e", elements.gasChartRange, "%");
   renderTable(readings.slice(0, 8));
 }
 
@@ -187,9 +221,10 @@ function renderTable(readings) {
   readings.forEach((reading) => {
     const row = document.createElement("tr");
     const values = [
-      formatTime(reading.received_at),
+      formatTime(reading.measured_at),
       `${Number(reading.temperature_c).toFixed(1)} °C`,
       `${Number(reading.humidity_pct).toFixed(1)}%`,
+      reading.gas_level_pct == null ? "—" : `${Number(reading.gas_level_pct).toFixed(1)}% (${reading.gas_raw})`,
       reading.mode,
       `#${reading.seq}`,
     ];
@@ -213,14 +248,20 @@ async function createSummary() {
     });
     elements.summaryText.textContent = report.summary;
     const sources = {
-      ollama: "kohalik Ollama / Qwen3",
+      ollama: "kohalik Ollama",
       openai: "OpenAI",
       rules_no_api_key: "reeglipõhine varuvariant (API võti puudub)",
       rules_ai_error: "reeglipõhine varuvariant (AI teenus ei vastanud)",
       rules_no_ai_available: "reeglipõhine varuvariant (AI pole saadaval)",
+      rules_insufficient_coverage: "reeglipõhine (andmekatvus on ebapiisav)",
+      rules_sensor_quality: "reeglipõhine (anduri kvaliteedihoiatus)",
       rules_requested: "reeglipõhine",
     };
-    elements.summaryMeta.textContent = `Allikas: ${sources[report.summary_source] || report.summary_source} · AI sisend ${report.ai_input_bytes} baiti`;
+    const coverageLabel = report.coverage_sufficient ? "Katvus" : "Ebapiisav katvus";
+    const inputMeta = ["rules_insufficient_coverage", "rules_sensor_quality"].includes(report.summary_source)
+      ? "AI-d ei kasutatud"
+      : `AI sisend ${report.ai_input_bytes} baiti`;
+    elements.summaryMeta.textContent = `${coverageLabel}: ${report.sample_count}/${report.expected_sample_count} (${Number(report.coverage_percent).toFixed(1)}%) · Allikas: ${sources[report.summary_source] || report.summary_source} · ${inputMeta}`;
     renderAnomalies(report.anomalies);
   } catch (error) {
     elements.summaryText.textContent = `Kokkuvõtet ei saanud laadida: ${error.message}`;

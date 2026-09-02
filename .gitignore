@@ -6,3 +6,7 @@ __pycache__/
 data/*.sqlite*
 .env
 firmware/ruumiandur/secrets.h
+firmware/ruumiandur_esp32/secrets.h
+firmware/ruumiandur_esp32/build/
+firmware/ruumiandur_esp32/diagram.json
+firmware/ruumiandur_esp32/secrets.wokwi.generated.h

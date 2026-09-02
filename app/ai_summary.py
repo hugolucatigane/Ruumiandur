@@ -11,7 +11,10 @@ from typing import Any
 SYSTEM_INSTRUCTIONS = (
     "Toimeta välja deterministic_draft 1–3 lühikeseks ja loomuliku kõlaga eestikeelseks "
     "lauseks. Säilita kõik mustandis olevad faktid ja arvud; teisi välju kasuta ainult nende "
-    "kontrollimiseks. Ära arvuta, lisa soovitusi ega uusi väiteid. Ära maini JSON-i välju, "
+    "kontrollimiseks. Ära arvuta, lisa soovitusi ega uusi väiteid. Kui andmekatvus pole piisav, "
+    "säilita see hoiatus ja ära nimeta kogu perioodi normaalseks. Kui faktides on kinni jäänud "
+    "anduri hoiatus, säilita see ning ära nimeta vastavat mõõtekanalit usaldusväärseks. "
+    "Ära maini JSON-i välju, "
     "andmestruktuuri ega tühja sündmuste loendit. Ära pöördu lugeja poole, kasuta ingliskeelset "
     "sõna 'online' ega markdowni. Väljasta ainult lõpptekst."
 )
@@ -135,10 +138,13 @@ def prepare_facts(
 ) -> tuple[str, int]:
     facts = {
         "language": "et",
-        "room": report["room"],
         "requested_hours": report["requested_hours"],
         "sample_count": report["sample_count"],
+        "expected_sample_count": report["expected_sample_count"],
         "coverage_minutes": report["coverage_minutes"],
+        "coverage_percent": report["coverage_percent"],
+        "coverage_sufficient": report["coverage_sufficient"],
+        "minimum_coverage_percent": report["minimum_coverage_percent"],
         "period_start": report["period_start"],
         "period_end": report["period_end"],
         "statistics": report["statistics"],

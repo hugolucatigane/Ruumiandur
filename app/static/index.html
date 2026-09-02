@@ -19,7 +19,10 @@
       </div>
       <div class="device-controls">
         <label for="device-id">Seade</label>
-        <input id="device-id" value="esp8266-bedroom-1" maxlength="64" spellcheck="false">
+        <select id="device-id">
+          <option value="esp32-bedroom-1" selected>ESP32 · DHT22 + MQ-2</option>
+          <option value="esp8266-bedroom-1">ESP8266 · simulaator</option>
+        </select>
         <button id="refresh-button" class="secondary-button" type="button">Värskenda</button>
       </div>
     </header>
@@ -34,7 +37,6 @@
           </div>
         </div>
         <div class="status-meta">
-          <span id="room-label">—</span>
           <span id="last-update">Viimane mõõtmine: —</span>
         </div>
       </section>
@@ -55,6 +57,14 @@
           </div>
           <p class="metric-value"><span id="humidity-value">—</span><small>%</small></p>
           <p id="humidity-range" class="muted">Eelistatud unevahemik —</p>
+        </article>
+        <article class="metric-card gas-card">
+          <div class="metric-heading">
+            <span>MQ-2 gaasitase</span>
+            <span id="gas-quality" class="tag">—</span>
+          </div>
+          <p class="metric-value"><span id="gas-value">—</span><small>%</small></p>
+          <p id="gas-range" class="muted">Suhteline signaal, mitte ppm</p>
         </article>
         <article class="metric-card quality-card">
           <div class="metric-heading"><span>Andmekvaliteet</span></div>
@@ -79,6 +89,10 @@
           <div class="chart-block">
             <div class="chart-label"><span>Õhuniiskus</span><span id="humidity-chart-range">—</span></div>
             <canvas id="humidity-chart" role="img" aria-label="Õhuniiskuse muutus ajas"></canvas>
+          </div>
+          <div class="chart-block">
+            <div class="chart-label"><span>MQ-2 suhteline gaasitase</span><span id="gas-chart-range">—</span></div>
+            <canvas id="gas-chart" role="img" aria-label="MQ-2 suhtelise gaasitaseme muutus ajas"></canvas>
           </div>
         </article>
 
@@ -116,10 +130,10 @@
         <div class="table-wrap">
           <table>
             <thead>
-              <tr><th>Aeg</th><th>Temperatuur</th><th>Õhuniiskus</th><th>Režiim</th><th>Jada</th></tr>
+              <tr><th>Aeg</th><th>Temperatuur</th><th>Õhuniiskus</th><th>MQ-2</th><th>Režiim</th><th>Jada</th></tr>
             </thead>
             <tbody id="reading-rows">
-              <tr><td colspan="5" class="empty-cell">Andmed puuduvad.</td></tr>
+              <tr><td colspan="6" class="empty-cell">Andmed puuduvad.</td></tr>
             </tbody>
           </table>
         </div>

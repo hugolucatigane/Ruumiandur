@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
+from math import ceil
 from pathlib import Path
 from typing import Any
 
@@ -97,7 +98,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         status = _device_status(database, device_id, app_settings)
         report = analyse_readings(readings, status, hours, app_settings)
         fallback = fallback_summary(report)
-        if use_ai:
+        if not report["coverage_sufficient"]:
+            result = generate_summary_without_ai(
+                report,
+                fallback,
+                source="rules_insufficient_coverage",
+            )
+        elif report["device_status"].get("sensor_warnings"):
+            result = generate_summary_without_ai(
+                report,
+                fallback,
+                source="rules_sensor_quality",
+            )
+        elif use_ai:
             result = await asyncio.to_thread(generate_summary, report, fallback)
         else:
             result = generate_summary_without_ai(report, fallback)
@@ -113,18 +126,40 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
 
 def _device_status(database: Database, device_id: str, settings: Settings) -> dict[str, Any]:
+    now = datetime.now(timezone.utc)
+    stuck_window_start = now - timedelta(minutes=settings.sensor_stuck_window_minutes)
+    stuck_sample_limit = max(
+        2,
+        ceil(
+            settings.sensor_stuck_window_minutes
+            * 60
+            / settings.expected_interval_seconds
+        )
+        + 1,
+    )
+    recent_readings = database.recent_readings(
+        device_id,
+        limit=stuck_sample_limit,
+        since=stuck_window_start,
+    )
     return build_device_status(
         database.latest_reading(device_id),
         database.latest_event(device_id),
         database.latest_invalid_event(device_id),
         database.rejected_count(device_id),
         settings,
+        now=now,
+        recent_readings=recent_readings,
     )
 
 
-def generate_summary_without_ai(report: dict[str, Any], fallback: str):
+def generate_summary_without_ai(
+    report: dict[str, Any],
+    fallback: str,
+    source: str = "rules_requested",
+):
     _, input_bytes = prepare_facts(report)
-    return SummaryResult(fallback, "rules_requested", input_bytes)
+    return SummaryResult(fallback, source, input_bytes)
 
 
 app = create_app()

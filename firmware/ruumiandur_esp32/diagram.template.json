@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "author": "Ruumiandur",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "wokwi-esp32-devkit-v1",
+      "id": "esp32",
+      "top": 0,
+      "left": 0,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-dht22",
+      "id": "dht22",
+      "top": -48,
+      "left": 240,
+      "attrs": {
+        "temperature": "22.4",
+        "humidity": "47.3"
+      }
+    },
+    {
+      "type": "wokwi-gas-sensor",
+      "id": "mq2",
+      "top": 176,
+      "left": 240,
+      "attrs": {
+        "ppm": "400"
+      }
+    }
+  ],
+  "connections": [
+    [ "esp32:3V3", "dht22:VCC", "red", [] ],
+    [ "esp32:D4", "dht22:SDA", "green", [] ],
+    [ "esp32:GND.1", "dht22:GND", "black", [] ],
+    [ "esp32:VIN", "mq2:VCC", "red", [] ],
+    [ "esp32:D34", "mq2:AO", "orange", [] ],
+    [ "esp32:GND.2", "mq2:GND", "black", [] ]
+  ],
+  "serialMonitor": {
+    "display": "terminal"
+  },
+  "dependencies": {}
+}

@@ -1,0 +1,4 @@
+[wokwi]
+version = 1
+firmware = 'build/wokwi/ruumiandur_esp32.ino.bin'
+elf = 'build/wokwi/ruumiandur_esp32.ino.elf'
